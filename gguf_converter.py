@@ -373,7 +373,7 @@ class ConverterUI:
         # Pre-created canvas items for efficient animation (no delete/create cycle)
         self._progress_segments = []  # List of rectangle item IDs
         self._nyan_item = None  # Nyan cat image item ID
-        self._num_segments = 30  # Reduced segments for better performance
+        self._num_segments = 100  # More segments for smoother gradient (like install_gui.py)
         
         self._create_ui()
         self._scan_downloads()
@@ -998,7 +998,7 @@ class ConverterUI:
         self._nyan_item = self.progress_canvas.create_image(0, 30, image=None, anchor=tk.W, state='hidden')
     
     def draw_progress_bar(self):
-        """Update progress bar using pre-created items (no delete/create - much faster)."""
+        """Update progress bar with smooth flowing rainbow gradient and wave effect (ported from install_gui.py)."""
         canvas_width = self.progress_canvas.winfo_width()
         if canvas_width < 100:  # Not yet rendered
             canvas_width = 600
@@ -1006,6 +1006,7 @@ class ConverterUI:
         height = 22
         canvas_height = 60
         y_offset = (canvas_height - height) // 2
+        # Progress bar ends under Nyan Cat center (subtract half cat width ~25px)
         progress_width = int((self.progress_value / 100) * width) - 25
         
         # Read animation state with lock for thread safety
@@ -1017,43 +1018,62 @@ class ConverterUI:
         if progress_width > 0:
             segment_width = progress_width / self._num_segments
             
-            # Calculate wave phase so that the END of the bar matches nyan cat position
-            # Nyan cat uses: 8 * sin(wave_offset)
-            # Last segment should have same phase, so we offset from the end
             for i, item_id in enumerate(self._progress_segments):
                 x1 = int(i * segment_width)
                 x2 = int((i + 1) * segment_width)
                 if x2 > progress_width: x2 = progress_width
                 
-                # Smooth color calculation with interpolation
-                color_pos = (i / self._num_segments * len(self.gradient_colors) + gradient_offset) % len(self.gradient_colors)
-                color_idx = int(color_pos)
-                color_frac = color_pos - color_idx
-                next_idx = (color_idx + 1) % len(self.gradient_colors)
-                color = self._interpolate_color(self.gradient_colors[color_idx], self.gradient_colors[next_idx], color_frac)
+                # Calculate color index with smooth transition using ABSOLUTE position (like install_gui.py)
+                # This makes gradient flow smoothly instead of jumping
+                color_pos = ((x1 / width) * len(self.gradient_colors) + gradient_offset) % len(self.gradient_colors)
+                color_idx = int(color_pos) % len(self.gradient_colors)
+                next_color_idx = (color_idx + 1) % len(self.gradient_colors)
                 
-                # Wave effect - calculate from the END so it syncs with nyan cat
-                # i=last should have phase = wave_offset (same as nyan)
+                # Interpolate between colors for smooth transition
+                blend = color_pos - int(color_pos)
+                color = self._interpolate_color(
+                    self.gradient_colors[color_idx],
+                    self.gradient_colors[next_color_idx],
+                    blend
+                )
+                
+                # Wave effect with increasing amplitude towards the end (like install_gui.py)
+                # Start is calm, end actively bounces (where Nyan Cat is)
+                progress_ratio = x1 / progress_width if progress_width > 0 else 0
+                base_amplitude = 2   # Minimum amplitude at start
+                max_amplitude = 8    # Maximum amplitude near cat
+                wave_amplitude = base_amplitude + (max_amplitude - base_amplitude) * progress_ratio
+                
+                # Wave phase: calculate from END so last segment matches cat position
+                # segments_from_end = 0 at the end (under cat), increases towards start
                 segments_from_end = self._num_segments - 1 - i
-                wave_height = 5 * math.sin(wave_offset - segments_from_end / 3)
+                wave_height = wave_amplitude * math.sin(wave_offset - segments_from_end / 8)
                 
+                # Smooth wave - both edges follow sine wave
                 center_y = y_offset + height // 2
-                y1 = int(center_y - height // 2 + wave_height)
-                y2 = int(center_y + height // 2 + wave_height)
+                half_height = height // 2
+                
+                y1_pos = int(center_y - half_height + wave_height)
+                y2_pos = int(center_y + half_height + wave_height)
                 
                 # Update existing item instead of delete/create
-                self.progress_canvas.coords(item_id, x1, y1, x2, y2)
+                self.progress_canvas.coords(item_id, x1, y1_pos, x2, y2_pos)
                 self.progress_canvas.itemconfig(item_id, fill=color, state='normal')
+            
+            # Hide unused segments (if any)
+            for item_id in self._progress_segments[self._num_segments:]:
+                self.progress_canvas.itemconfig(item_id, state='hidden')
         else:
             # Hide all segments when no progress
             for item_id in self._progress_segments:
                 self.progress_canvas.itemconfig(item_id, state='hidden')
         
-        # Update nyan cat position
+        # Update nyan cat position - SAME phase as last segment (wave_offset with segments_from_end=0)
         if self.nyan_frames and self._nyan_item:
             if progress_width > 0:
                 nyan_x = min(progress_width - 10, width - 8)
-                nyan_wave = 5 * math.sin(wave_offset)  # Same amplitude as bar end
+                # Cat bounces with SAME phase as the end of the wave (segments_from_end=0)
+                nyan_wave = 8 * math.sin(wave_offset)  # Same formula: sin(wave_offset - 0/8) = sin(wave_offset)
             else:
                 nyan_x = 0
                 nyan_wave = 3 * math.sin(wave_offset)
@@ -1081,7 +1101,7 @@ class ConverterUI:
             self._nyan_anim_counter = 0
             self._last_animation_time = time.perf_counter()
             
-            # Start animation thread
+            # Start animation thread (independent of UI)
             self._animation_thread = threading.Thread(target=self._animation_loop, daemon=True)
             self._animation_thread.start()
             
@@ -1226,8 +1246,11 @@ class ConverterUI:
         if not self.queue_processing:
             return
         
-        # Process ALL items in queue to prevent buildup
-        while True:
+        # Process up to 10 items per cycle to prevent UI blocking
+        items_processed = 0
+        max_items_per_cycle = 10
+        
+        while items_processed < max_items_per_cycle:
             try:
                 item = self.ui_queue.get_nowait()
                 if item[0] == 'log':
@@ -1242,12 +1265,13 @@ class ConverterUI:
                     self.progress_label.config(text=f"{val}%")
                     self.status_label.config(text=status)
                     # DON'T call draw_progress_bar() here - animation loop handles it
+                items_processed += 1
             except Empty:
                 break
         
-        # Schedule next queue processing (100ms is enough for UI responsiveness)
+        # Schedule next queue processing (50ms for better responsiveness)
         if self.queue_processing:
-            self.root.after(100, self._process_ui_queue)
+            self.root.after(50, self._process_ui_queue)
     
     def _start_queue_processing(self):
         """Start processing UI queue."""

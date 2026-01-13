@@ -41,6 +41,13 @@ TRANSLATIONS = {
         "conversion_failed": "Ошибка конвертации",
         "cancelling": "Отмена...",
         
+        # AWQ Support
+        "awq_detected": "Обнаружена AWQ модель. Требуется деквантизация перед конвертацией.",
+        "awq_dequantizing": "Деквантизация AWQ модели в FP16...",
+        "awq_dequantized_layers": "Деквантизировано слоёв",
+        "awq_memory_warning": "Внимание: деквантизация AWQ требует ~{0} ГБ памяти",
+        "awq_processing": "Обработка AWQ слоя",
+        
         # Log
         "log": "Лог:",
         "time": "Время",
@@ -146,6 +153,13 @@ TRANSLATIONS = {
         "conversion_failed": "Conversion failed",
         "cancelling": "Cancelling...",
         
+        # AWQ Support
+        "awq_detected": "AWQ model detected. Dequantization required before conversion.",
+        "awq_dequantizing": "Dequantizing AWQ model to FP16...",
+        "awq_dequantized_layers": "Dequantized layers",
+        "awq_memory_warning": "Warning: AWQ dequantization requires ~{0} GB memory",
+        "awq_processing": "Processing AWQ layer",
+        
         # Log
         "log": "Log:",
         "time": "Time",
@@ -250,6 +264,13 @@ TRANSLATIONS = {
         "conversion_complete": "转换完成!",
         "conversion_failed": "转换失败",
         "cancelling": "取消中...",
+        
+        # AWQ Support
+        "awq_detected": "检测到AWQ模型。转换前需要反量化。",
+        "awq_dequantizing": "正在将AWQ模型反量化为FP16...",
+        "awq_dequantized_layers": "已反量化层数",
+        "awq_memory_warning": "警告：AWQ反量化需要约{0} GB内存",
+        "awq_processing": "正在处理AWQ层",
         
         # Log
         "log": "日志:",

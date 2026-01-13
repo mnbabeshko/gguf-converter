@@ -20,6 +20,7 @@ Universal utility for converting AI models to GGUF format with quantization.
 - 🌍 Multilingual: English, Русский, 中文
 - ⚡ FP8 model processing (automatic dequantization)
 - 🎯 Mixed quantization Q4_K_M (important layers in Q6_K)
+- 🆕 **AWQ model support** (automatic INT4 → FP16 dequantization)
 
 ## Installation
 
@@ -97,6 +98,7 @@ Or use `run_converter.bat` for quick launch.
 gguf-converter-v1/
 ├── gguf_converter.py    # Main script
 ├── quantizer.py         # Quantization logic
+├── awq_support.py       # AWQ dequantization
 ├── ui_widgets.py        # UI components
 ├── translations.py      # Translations (RU/EN/ZH)
 ├── settings.json        # User settings
@@ -113,7 +115,8 @@ gguf-converter-v1/
 │   ├── compare_gguf_models.py     # GGUF comparison
 │   ├── compare_tensors_detailed.py # Detailed comparison
 │   ├── compare_two_models.py      # Two model comparison
-│   └── test_quantization_types.py # Quantization tests
+│   ├── test_quantization_types.py # Quantization tests
+│   └── test_awq_support.py        # AWQ support tests
 └── README.md            # Documentation
 ```
 
@@ -149,11 +152,39 @@ Q4_K_M uses intelligent quantization:
 - Other layers → Q4_K
 - Bias and normalization → F32
 
+### AWQ Model Support
+AWQ (Activation-aware Weight Quantization) models are automatically detected and converted:
+
+**How it works:**
+1. Automatic detection of AWQ format (`.qweight`, `.qzeros`, `.scales` tensors)
+2. INT4 → FP16 dequantization using the formula: `weight = (qweight - qzeros) * scales`
+3. Standard GGUF quantization of dequantized weights
+
+**Supported AWQ models:**
+- Any AWQ model in `.safetensors` format
+- Group sizes: 32, 64, 128 (auto-detected)
+- 4-bit quantization (INT4)
+
+**Memory requirements:**
+- AWQ 7B model: ~4GB on disk → ~14GB FP16 → ~4GB GGUF Q4_K_M
+- Processing uses streaming dequantization to minimize peak memory usage
+
+**Example models:**
+- `TheBloke/Llama-2-7B-AWQ`
+- `TheBloke/Mistral-7B-v0.1-AWQ`
+- Any HuggingFace AWQ model
+
 ### Dark Theme
 The interface uses a dark color scheme, comfortable for the eyes.
 Dark window title bar is supported on Windows 11.
 
 ## Changelog
+
+### v1.9
+- 🆕 **AWQ model support** — automatic INT4 → FP16 dequantization
+- 🔍 AWQ format auto-detection (qweight, qzeros, scales)
+- ⚡ Streaming dequantization for memory efficiency
+- 🧪 AWQ test suite (`tools/test_awq_support.py`)
 
 ### v1.8
 - ⚡ Progress bar animation optimization (3x faster)
@@ -199,10 +230,10 @@ miha2017
 
 If you find this project useful, you can support development:
 
-| For Russia: SBP | Cryptocurrency: USDT TRC20 |
+| YooMoney (Russia) | Cryptocurrency: USDT TRC20 |
 |:---:|:---:|
-| <img src="images/QR-sber.png" alt="SBP QR Code" width="150"> | <img src="images/QR-tron-donate.png" alt="USDT TRC20 QR Code" width="150"> |
-| | `TFZoJGcYd8z2QPokiZSBcZnrkTevEnxpyR` |
+| <img src="images/QR-Youmoney.png" alt="YooMoney QR Code" width="150"> | <img src="images/QR-tron-donate.png" alt="USDT TRC20 QR Code" width="150"> |
+| [yoomoney.ru/to/41001355824274](https://yoomoney.ru/to/41001355824274) | `TFZoJGcYd8z2QPokiZSBcZnrkTevEnxpyR` |
 
 ---
 

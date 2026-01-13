@@ -66,6 +66,20 @@ class QuantType(Enum):
 
 
 @dataclass
+class AWQModelInfo:
+    """Information about AWQ quantized model."""
+    is_awq: bool = False
+    group_size: int = 128
+    bits: int = 4
+    num_layers: int = 0
+    awq_keys: list = None  # List of AWQ tensor base names
+    
+    def __post_init__(self):
+        if self.awq_keys is None:
+            self.awq_keys = []
+
+
+@dataclass
 class ModelInfo:
     """Information about a model file."""
     path: Path
@@ -77,6 +91,7 @@ class ModelInfo:
     dtype: Optional[str] = None
     num_tensors: Optional[int] = None
     error: Optional[str] = None
+    awq_info: Optional[AWQModelInfo] = None  # AWQ detection info
 
 
 @dataclass
@@ -89,6 +104,109 @@ class ConversionResult:
     input_size_mb: float = 0.0
     output_size_mb: float = 0.0
     compression_ratio: float = 0.0
+
+
+# =============================================================================
+# AWQ DETECTION
+# =============================================================================
+
+def detect_awq_model(path: Path) -> AWQModelInfo:
+    """
+    Detect if a safetensors file contains AWQ quantized weights.
+    
+    AWQ models have characteristic tensor patterns:
+    - *.qweight (INT32 packed INT4 values)
+    - *.qzeros (zero points)
+    - *.scales (FP16 scales)
+    
+    Returns AWQModelInfo with detection results.
+    """
+    result = AWQModelInfo()
+    
+    if not path.exists() or path.suffix.lower() != ".safetensors":
+        return result
+    
+    try:
+        with open(path, 'rb') as f:
+            header_size = struct.unpack('<Q', f.read(8))[0]
+            header = json.loads(f.read(header_size).decode('utf-8'))
+        
+        # Look for AWQ signature keys
+        qweight_keys = []
+        qzeros_keys = []
+        scales_keys = []
+        
+        for key in header.keys():
+            if key == "__metadata__":
+                continue
+            if key.endswith('.qweight'):
+                qweight_keys.append(key)
+            elif key.endswith('.qzeros'):
+                qzeros_keys.append(key)
+            elif key.endswith('.scales'):
+                scales_keys.append(key)
+        
+        # AWQ model must have all three types of tensors
+        if not (qweight_keys and qzeros_keys and scales_keys):
+            return result
+        
+        # Verify matching base names
+        awq_base_names = []
+        for qw_key in qweight_keys:
+            base_name = qw_key.replace('.qweight', '')
+            qz_key = base_name + '.qzeros'
+            sc_key = base_name + '.scales'
+            if qz_key in qzeros_keys and sc_key in scales_keys:
+                awq_base_names.append(base_name)
+        
+        if not awq_base_names:
+            return result
+        
+        # Detected AWQ model
+        result.is_awq = True
+        result.awq_keys = awq_base_names
+        result.num_layers = len(awq_base_names)
+        result.bits = 4  # AWQ is typically INT4
+        
+        # Try to determine group_size from tensor shapes
+        # qzeros shape: [out_features // group_size, in_features // 8]
+        # scales shape: [out_features // group_size, in_features]
+        first_qw = qweight_keys[0]
+        first_sc = first_qw.replace('.qweight', '.scales')
+        
+        if first_qw in header and first_sc in header:
+            qw_info = header[first_qw]
+            sc_info = header[first_sc]
+            if isinstance(qw_info, dict) and isinstance(sc_info, dict):
+                qw_shape = qw_info.get('shape', [])
+                sc_shape = sc_info.get('shape', [])
+                if len(qw_shape) >= 2 and len(sc_shape) >= 2:
+                    # in_features from scales = sc_shape[1]
+                    # packed in_features from qweight = qw_shape[1] * 8
+                    # group_size = in_features / (qzeros rows)
+                    in_features = sc_shape[1] if len(sc_shape) > 1 else 0
+                    num_groups = sc_shape[0] if len(sc_shape) > 0 else 1
+                    if num_groups > 0 and in_features > 0:
+                        result.group_size = in_features // num_groups if num_groups > 1 else 128
+        
+        # Check metadata for AWQ config
+        meta = header.get("__metadata__", {})
+        if "quantization_config" in meta:
+            try:
+                qconfig = json.loads(meta["quantization_config"]) if isinstance(meta["quantization_config"], str) else meta["quantization_config"]
+                if "group_size" in qconfig:
+                    result.group_size = int(qconfig["group_size"])
+                if "bits" in qconfig:
+                    result.bits = int(qconfig["bits"])
+            except:
+                pass
+        
+        log_to_file(f"AWQ detected: {result.num_layers} layers, group_size={result.group_size}, bits={result.bits}")
+        return result
+        
+    except Exception as e:
+        log_to_file(f"AWQ detection error: {e}", "WARNING")
+        return result
 
 
 # =============================================================================
@@ -212,7 +330,11 @@ class ModelAnalyzer:
                     dtype = v.get("dtype")
                     break
             model_name = extract_model_name(path)
-            return ModelInfo(path, "safetensors", size, 1, model_name=model_name, dtype=dtype, num_tensors=num_tensors)
+            
+            # Check for AWQ format
+            awq_info = detect_awq_model(path)
+            
+            return ModelInfo(path, "safetensors", size, 1, model_name=model_name, dtype=dtype, num_tensors=num_tensors, awq_info=awq_info)
         except Exception as e:
             return ModelInfo(path, "safetensors", path.stat().st_size, 1, model_name=path.stem, error=str(e))
     
@@ -401,12 +523,16 @@ class GGUFConverter:
 
     
     def _convert_safetensors_streaming(self, info: ModelInfo, qtype: QuantType, out_path: Path) -> ConversionResult:
-        """Потоковая конвертация safetensors - с многопоточной квантизацией."""
+        """Потоковая конвертация safetensors - с многопоточной квантизацией и поддержкой AWQ."""
         import numpy as np
         import torch
         from safetensors import safe_open
         from concurrent.futures import ThreadPoolExecutor
         import os
+        
+        # Check if this is an AWQ model
+        if info.awq_info and info.awq_info.is_awq:
+            return self._convert_awq_model(info, qtype, out_path)
         
         # Используем половину ядер для квантизации (остальные для I/O и системы)
         num_workers = max(1, os.cpu_count() // 2)
@@ -574,6 +700,136 @@ class GGUFConverter:
         except Exception as e:
             error_msg = f"{type(e).__name__}: {str(e)}"
             log_exception(f"Streaming conversion error: {error_msg}")
+            self.log(f"ERROR: {error_msg}")
+            return ConversionResult(False, error_message=error_msg)
+
+    
+    def _convert_awq_model(self, info: ModelInfo, qtype: QuantType, out_path: Path) -> ConversionResult:
+        """Convert AWQ model by dequantizing to FP16 first, then quantizing to GGUF."""
+        import numpy as np
+        from awq_support import AWQDequantizer
+        
+        try:
+            awq_info = info.awq_info
+            log_to_file(f"Converting AWQ model: {awq_info.num_layers} layers, group_size={awq_info.group_size}")
+            self.log(f"AWQ model detected: {awq_info.num_layers} layers")
+            self.log(f"Dequantizing AWQ to FP16 before GGUF conversion...")
+            
+            # Create dequantizer
+            dequantizer = AWQDequantizer(
+                progress_cb=lambda p, s: self.progress(int(p * 0.4), s),  # 0-40% for dequant
+                log_cb=self.log,
+                low_memory=True
+            )
+            
+            # Estimate memory
+            mem_info = dequantizer.estimate_memory_usage(info.path)
+            log_to_file(f"Memory estimate: AWQ={mem_info['awq_size_mb']:.0f}MB, FP16={mem_info['fp16_size_mb']:.0f}MB, Peak={mem_info['peak_memory_mb']:.0f}MB")
+            self.log(f"Estimated FP16 size: {mem_info['fp16_size_mb']:.0f} MB")
+            
+            # Collect dequantized tensors
+            tensors_data = []
+            
+            def collect_tensor(name: str, data: np.ndarray):
+                tensors_data.append((name, data.copy()))
+            
+            # Dequantize
+            self.progress(5, "Dequantizing AWQ...")
+            dequant_count = dequantizer.dequantize_model_streaming(
+                info.path,
+                collect_tensor,
+                group_size=awq_info.group_size
+            )
+            
+            self.log(f"Dequantized {dequant_count} AWQ layers")
+            log_to_file(f"Dequantized {dequant_count} layers, total tensors: {len(tensors_data)}")
+            
+            # Now quantize to GGUF
+            self.progress(45, "Writing GGUF...")
+            self.log(f"Quantizing {len(tensors_data)} tensors to {qtype.code}...")
+            
+            with open(out_path, 'wb') as f:
+                # GGUF Header
+                f.write(struct.pack('<I', 0x46554747))  # Magic: "GGUF"
+                f.write(struct.pack('<I', 3))           # Version
+                f.write(struct.pack('<Q', len(tensors_data)))  # Num tensors
+                f.write(struct.pack('<Q', 0))           # Num KV pairs
+                
+                # Quantize and collect data
+                data_list = []
+                quantized_count = 0
+                f32_count = 0
+                
+                for i, (name, arr) in enumerate(tensors_data):
+                    if self._cancelled:
+                        raise Exception("Cancelled")
+                    
+                    # Convert to float32 for quantization
+                    if arr.dtype == np.float16:
+                        arr = arr.astype(np.float32)
+                    
+                    if self._should_quantize(name, arr.shape):
+                        layer_qtype = self._get_quant_type_for_layer(name, qtype.code, arr.shape)
+                        try:
+                            qdata, dtype_code = self._quantize(arr, layer_qtype)
+                            quantized_count += 1
+                        except Exception as e:
+                            log_to_file(f"Quantization failed for {name}: {e}", "WARNING")
+                            qdata, dtype_code = arr.astype(np.float32).tobytes(), 0
+                            f32_count += 1
+                    else:
+                        qdata, dtype_code = arr.astype(np.float32).tobytes(), 0
+                        f32_count += 1
+                    
+                    data_list.append((name, qdata, arr.shape, dtype_code))
+                    
+                    # Progress update
+                    progress = 45 + int(45 * (i + 1) / len(tensors_data))
+                    if i % 50 == 0:
+                        self.progress(progress, f"Quantizing {i+1}/{len(tensors_data)}")
+                    
+                    # Free memory
+                    del arr
+                    if i % 100 == 0:
+                        gc.collect()
+                
+                # Clear original tensors
+                tensors_data.clear()
+                gc.collect()
+                
+                log_to_file(f"Quantized: {quantized_count}, F32: {f32_count}")
+                self.log(f"Quantized: {quantized_count}, F32: {f32_count}")
+                
+                # Write tensor headers
+                self.progress(92, "Writing headers...")
+                offset = 0
+                for name, data, shape, dtype_code in data_list:
+                    nb = name.encode('utf-8')
+                    f.write(struct.pack('<Q', len(nb)))
+                    f.write(nb)
+                    f.write(struct.pack('<I', len(shape)))
+                    for d in shape:
+                        f.write(struct.pack('<Q', d))
+                    f.write(struct.pack('<I', dtype_code))
+                    f.write(struct.pack('<Q', offset))
+                    offset += len(data)
+                
+                # Write tensor data
+                self.progress(95, "Writing data...")
+                for name, data, shape, dtype_code in data_list:
+                    f.write(data)
+                
+                del data_list
+                gc.collect()
+            
+            self.progress(100, "Done!")
+            log_to_file("AWQ conversion completed successfully!")
+            self.log("AWQ conversion completed!")
+            return ConversionResult(True, output_path=out_path)
+            
+        except Exception as e:
+            error_msg = f"AWQ conversion error: {type(e).__name__}: {str(e)}"
+            log_exception(error_msg)
             self.log(f"ERROR: {error_msg}")
             return ConversionResult(False, error_message=error_msg)
 

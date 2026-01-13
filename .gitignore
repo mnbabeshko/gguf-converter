@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Logs
+*.log
+converter.log
+
+# Settings (user-specific)
+settings.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Music files (user adds their own)
+music/*.mp3
+music/*.wav
+
+# Temporary files
+*.tmp
+*.bak

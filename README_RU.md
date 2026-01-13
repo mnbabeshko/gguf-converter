@@ -1,10 +1,6 @@
 # GGUF Converter
 
 <p align="center">
-  <img src="images/logoLLM.png" alt="GGUF Converter Logo" width="160">
-</p>
-
-<p align="center">
   <img src="images/screenshot.png" alt="GGUF Converter Interface" width="600">
 </p>
 

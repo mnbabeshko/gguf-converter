@@ -48,7 +48,9 @@ pip install torch
 python gguf_converter.py
 ```
 
-Or use `run_converter.bat` for quick launch.
+Or use one of the launchers:
+- `run_converter.bat` — quick launch (recommended)
+- `GGUF Converter.vbs` — silent launch without console window
 
 ### Conversion Process
 
@@ -241,4 +243,4 @@ If you find this project useful, you can support development:
 
 📧 thepuppeteer@internet.ru
 
-*GGUF Converter v1.8*
+*GGUF Converter v1.9*

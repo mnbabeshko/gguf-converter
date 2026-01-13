@@ -26,10 +26,6 @@ settings.json
 .DS_Store
 Thumbs.db
 
-# Music files (user adds their own)
-music/*.mp3
-music/*.wav
-
 # Temporary files
 *.tmp
 *.bak

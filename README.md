@@ -199,6 +199,12 @@ miha2017
 
 If you find this project useful, you can support development:
 
+**For Russia: transfer via SBP**
+
+<p align="center">
+  <img src="images/QR-sber.png" alt="SBP QR Code" width="150">
+</p>
+
 **Cryptocurrency:**
 
 <p align="center">

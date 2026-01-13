@@ -122,7 +122,7 @@ from ui_widgets import make_round_button, make_icon_button, show_dark_dialog
 from quantizer import (
     QuantType, ModelInfo, ConversionResult,
     ModelAnalyzer, GGUFConverter, QUANT_CONFIGS,
-    extract_model_name
+    extract_model_name, _extract_name_from_config
 )
 
 # Check for single instance (Windows only)
@@ -311,7 +311,7 @@ class ConverterUI:
         self.root.title(self._t("window_title"))
         self._set_dark_titlebar()
         self.root.withdraw()
-        self.root.geometry("720x720")
+        self.root.geometry("720x728")
         self.root.resizable(False, False)
         
         # Set window icon
@@ -782,12 +782,12 @@ class ConverterUI:
         self.browse_btn = make_round_button(btn_frame, self._t("browse"), self._browse_file, bg_color=COLORS['bg'])
         self.browse_btn.pack(side=tk.LEFT)
         
-        self.info_label = tk.Label(main, text="", font=("Segoe UI", 9), fg=COLORS['fg_dim'], bg=COLORS['bg'], anchor=tk.W)
-        self.info_label.pack(fill=tk.X)
-        self.output_label = tk.Label(main, text="", font=("Segoe UI", 9), fg=COLORS['accent'], bg=COLORS['bg'], anchor=tk.W)
-        self.output_label.pack(fill=tk.X)
+        self.info_label = tk.Label(main, text=" ", font=("Segoe UI", 9), fg=COLORS['fg_dim'], bg=COLORS['bg'], anchor=tk.W, height=1)
+        self.info_label.pack(fill=tk.X, pady=(4, 0))
+        self.output_label = tk.Label(main, text=" ", font=("Segoe UI", 9), fg=COLORS['accent'], bg=COLORS['bg'], anchor=tk.W, height=1)
+        self.output_label.pack(fill=tk.X, pady=(2, 0))
         
-        tk.Frame(main, height=1, bg='#2a2a2a').pack(fill=tk.X, pady=4)
+        tk.Frame(main, height=1, bg='#2a2a2a').pack(fill=tk.X, pady=(6, 4))
         
         # Output folder selection
         output_frame = tk.Frame(main, bg=COLORS['bg'])
@@ -1161,28 +1161,34 @@ class ConverterUI:
             self._analyze_model(DOWNLOADS_FOLDER / name)
     
     def _analyze_model(self, path: Path):
-        self._log(f"{self._t('analyzing')}: {path.name}")
-        self.model_info = ModelAnalyzer.analyze(path)
-        
-        if self.model_info.model_name:
-            config_name = _extract_name_from_config(path)
-            if config_name and self.model_info.model_name == config_name:
-                self._log(f"{self._t('model_name_from_config')}: {self.model_info.model_name}")
-            elif self.model_info.model_name != path.stem and self.model_info.model_name != path.parent.name:
-                self._log(f"{self._t('model_name_from_metadata')}: {self.model_info.model_name}")
-            elif self.model_info.model_name == path.parent.name:
-                self._log(f"{self._t('model_name_from_folder')}: {self.model_info.model_name}")
-            else:
-                self._log(f"{self._t('model_name_from_filename')}: {self.model_info.model_name}")
-        
-        info = f"{self._t('type')}: {self.model_info.model_type}"
-        info += f"  |  {self._t('size')}: {self.model_info.size_bytes / (1024*1024):.1f} MB"
-        if self.model_info.dtype:
-            info += f"  |  {self._t('dtype')}: {self.model_info.dtype}"
-        if self.model_info.num_tensors:
-            info += f"  |  {self._t('tensors')}: {self.model_info.num_tensors}"
-        self.info_label.config(text=info)
-        self._update_output_preview()
+        log_to_file(f"_analyze_model called with path: {path}")
+        try:
+            self._log(f"{self._t('analyzing')}: {path.name}")
+            self.model_info = ModelAnalyzer.analyze(path)
+            log_to_file(f"model_info: type={self.model_info.model_type}, size={self.model_info.size_bytes}, dtype={self.model_info.dtype}, tensors={self.model_info.num_tensors}, model_name={self.model_info.model_name}")
+            
+            if self.model_info.model_name:
+                config_name = _extract_name_from_config(path)
+                if config_name and self.model_info.model_name == config_name:
+                    self._log(f"{self._t('model_name_from_config')}: {self.model_info.model_name}")
+                elif self.model_info.model_name != path.stem and self.model_info.model_name != path.parent.name:
+                    self._log(f"{self._t('model_name_from_metadata')}: {self.model_info.model_name}")
+                elif self.model_info.model_name == path.parent.name:
+                    self._log(f"{self._t('model_name_from_folder')}: {self.model_info.model_name}")
+                else:
+                    self._log(f"{self._t('model_name_from_filename')}: {self.model_info.model_name}")
+            
+            info = f"{self._t('type')}: {self.model_info.model_type}"
+            info += f"  |  {self._t('size')}: {self.model_info.size_bytes / (1024*1024):.1f} MB"
+            if self.model_info.dtype:
+                info += f"  |  {self._t('dtype')}: {self.model_info.dtype}"
+            if self.model_info.num_tensors:
+                info += f"  |  {self._t('tensors')}: {self.model_info.num_tensors}"
+            log_to_file(f"Setting info_label text: {info}")
+            self.info_label.config(text=info)
+            self._update_output_preview()
+        except Exception as e:
+            log_exception(f"Error in _analyze_model: {e}")
     
     def _update_output_preview(self):
         if self.model_info:
@@ -1199,8 +1205,16 @@ class ConverterUI:
         self._update_output_preview()
     
     def _log(self, msg):
-        """Queue log message for async UI update."""
-        self.ui_queue.put(('log', msg))
+        """Log message to UI. Direct update when queue not active, queued during conversion."""
+        if self.queue_processing:
+            # During conversion, use queue for async updates
+            self.ui_queue.put(('log', msg))
+        else:
+            # Outside conversion, update directly
+            self.log_text.config(state=tk.NORMAL)
+            self.log_text.insert(tk.END, msg + "\n")
+            self.log_text.see(tk.END)
+            self.log_text.config(state=tk.DISABLED)
     
     def _update_progress(self, val, status):
         """Queue progress update for async UI update."""

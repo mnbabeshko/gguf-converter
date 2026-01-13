@@ -1,7 +1,7 @@
 # GGUF Converter
 
 <p align="center">
-  <img src="images/logoLLM.png" alt="GGUF Converter Logo" width="200">
+  <img src="images/logoLLM.png" alt="GGUF Converter Logo" width="160">
 </p>
 
 <p align="center">

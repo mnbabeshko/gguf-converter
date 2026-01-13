@@ -4,7 +4,7 @@ GGUF Converter - Universal Model Quantization Tool
 Standalone utility for converting AI models to GGUF format
 
 Author: miha2017
-Version: 1.8
+Version: 1.9
 License: MIT
 """
 

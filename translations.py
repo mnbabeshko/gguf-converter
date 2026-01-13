@@ -7,7 +7,7 @@ TRANSLATIONS = {
     "ru": {
         # Window
         "window_title": "GGUF Конвертер",
-        "version_text": "GGUF конвертер от miha2017. вер. 1.8",
+        "version_text": "GGUF конвертер от miha2017. вер. 1.9",
         
         # Header
         "title": "GGUF Конвертер",
@@ -119,7 +119,7 @@ TRANSLATIONS = {
     "en": {
         # Window
         "window_title": "GGUF Converter",
-        "version_text": "GGUF converter by miha2017. ver. 1.8",
+        "version_text": "GGUF converter by miha2017. ver. 1.9",
         
         # Header
         "title": "GGUF Converter",
@@ -231,7 +231,7 @@ TRANSLATIONS = {
     "zh": {
         # Window
         "window_title": "GGUF 转换器",
-        "version_text": "GGUF 转换器 by miha2017. 版本 1.8",
+        "version_text": "GGUF 转换器 by miha2017. 版本 1.9",
         
         # Header
         "title": "GGUF 转换器",

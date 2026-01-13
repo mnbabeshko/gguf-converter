@@ -203,6 +203,6 @@ miha2017
 
 ## ⚡ Контакты:
 
-https://t.me/mnbabeshko
+📧 thepuppeteer@internet.ru
 
 *GGUF Converter v1.8*

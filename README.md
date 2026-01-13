@@ -208,6 +208,6 @@ If you find this project useful, you can support development:
 
 ## ⚡ Contact:
 
-https://t.me/mnbabeshko
+📧 thepuppeteer@internet.ru
 
 *GGUF Converter v1.8*

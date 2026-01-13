@@ -194,19 +194,10 @@ miha2017
 
 Если проект оказался полезен, можете поддержать разработку:
 
-**Для жителей России: перевод через СБП**
-
-<p align="center">
-  <img src="images/QR-sber.png" alt="СБП QR Code" width="150">
-</p>
-
-**Криптовалюта:**
-
-<p align="center">
-  <img src="images/QR-tron-donate.png" alt="USDT TRC20 QR Code" width="150">
-</p>
-
-**USDT (TRC20):** `TFZoJGcYd8z2QPokiZSBcZnrkTevEnxpyR`
+| Для России: СБП | Криптовалюта: USDT TRC20 |
+|:---:|:---:|
+| <img src="images/QR-sber.png" alt="СБП QR Code" width="150"> | <img src="images/QR-tron-donate.png" alt="USDT TRC20 QR Code" width="150"> |
+| | `TFZoJGcYd8z2QPokiZSBcZnrkTevEnxpyR` |
 
 ---
 

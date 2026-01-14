@@ -22,6 +22,10 @@ Universal utility for converting AI models to GGUF format with quantization.
 - 🎯 Mixed quantization Q4_K_M (important layers in Q6_K)
 - 🆕 **AWQ model support** (automatic INT4 → FP16 dequantization)
 
+<p align="center">
+  <img src="shema-1.jpg" alt="GGUF Converter scheme">
+</p>
+
 ## Installation
 
 ### Requirements

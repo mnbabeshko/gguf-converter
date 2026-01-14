@@ -23,7 +23,9 @@ Universal utility for converting AI models to GGUF format with quantization.
 - 🆕 **AWQ model support** (automatic INT4 → FP16 dequantization)
 
 <p align="center">
-  <img src="shema-1.jpg" alt="GGUF Converter scheme">
+  <a href="images/shema-1.jpg">
+    <img src="images/shema-1.jpg" alt="GGUF Converter scheme" width="100%">
+  </a>
 </p>
 
 ## Installation

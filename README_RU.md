@@ -21,7 +21,9 @@
 - 🆕 **Поддержка AWQ моделей** (автоматическая деквантизация INT4 → FP16)
 
 <p align="center">
-  <img src="shema-1.jpg" alt="GGUF Converter scheme">
+  <a href="images/shema-1.jpg">
+    <img src="images/shema-1.jpg" alt="GGUF Converter scheme" width="100%">
+  </a>
 </p>
 
 ## Установка

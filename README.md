@@ -1,4 +1,4 @@
-# GGUF Converter
+# GGUF Converter v1.91
 
 <p align="center">
   <img src="images/screenshot.png" alt="GGUF Converter Interface" width="600">
@@ -21,6 +21,7 @@ Universal utility for converting AI models to GGUF format with quantization.
 - ⚡ FP8 model processing (automatic dequantization)
 - 🎯 Mixed quantization Q4_K_M (important layers in Q6_K)
 - 🆕 **AWQ model support** (automatic INT4 → FP16 dequantization)
+- 🚀 **Auto-install dependencies** on first run
 
 <p align="center">
   <a href="images/shema-1.jpg">
@@ -37,13 +38,11 @@ Universal utility for converting AI models to GGUF format with quantization.
 
 ### Dependencies
 
-```bash
-pip install numpy pillow safetensors pywin32
-```
+Dependencies are **automatically installed** on first run!
 
-Optional for PyTorch models:
+Manual installation (optional):
 ```bash
-pip install torch
+pip install numpy pillow safetensors pywin32 torch
 ```
 
 ## Usage

@@ -4,12 +4,73 @@ GGUF Converter - Universal Model Quantization Tool
 Standalone utility for converting AI models to GGUF format
 
 Author: miha2017
-Version: 1.9
+Version: 1.91
 License: MIT
 """
 
 import os
 import sys
+import subprocess
+
+# =============================================================================
+# AUTO-INSTALL DEPENDENCIES ON FIRST RUN
+# =============================================================================
+
+def check_and_install_dependencies():
+    """Check and install required dependencies on first run."""
+    required_packages = {
+        'torch': 'torch',
+        'numpy': 'numpy', 
+        'safetensors': 'safetensors',
+        'PIL': 'pillow',
+        'win32event': 'pywin32',
+    }
+    
+    missing = []
+    for import_name, pip_name in required_packages.items():
+        try:
+            __import__(import_name)
+        except ImportError:
+            missing.append(pip_name)
+    
+    if missing:
+        # Show simple message while installing
+        try:
+            import tkinter as tk
+            from tkinter import messagebox
+            root = tk.Tk()
+            root.withdraw()
+            messagebox.showinfo(
+                "GGUF Converter - First Run",
+                f"Installing required dependencies:\n{', '.join(missing)}\n\nPlease wait..."
+            )
+            root.destroy()
+        except:
+            print(f"Installing dependencies: {', '.join(missing)}")
+        
+        # Install missing packages
+        for pkg in missing:
+            try:
+                if pkg == 'torch':
+                    # Install PyTorch with CUDA support
+                    subprocess.check_call([
+                        sys.executable, '-m', 'pip', 'install', 
+                        'torch', '--index-url', 'https://download.pytorch.org/whl/cu121',
+                        '--quiet'
+                    ])
+                else:
+                    subprocess.check_call([
+                        sys.executable, '-m', 'pip', 'install', pkg, '--quiet'
+                    ])
+            except subprocess.CalledProcessError:
+                pass
+        
+        # Restart the script after installation
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+
+# Run dependency check before any other imports
+check_and_install_dependencies()
+
 import time
 import json
 import struct
